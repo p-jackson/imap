@@ -27,13 +27,24 @@ TEST_CASE("A Connection can be opened to an imap service", "[connection]") {
     auto openTask = c.open("localhost", server.port());
 
     auto continuationCalled = false;
-    openTask.then([&] {
+    openTask.then([&](Endpoint) {
       REQUIRE(c.isOpen());
       continuationCalled = true;
     }).wait();
 
     REQUIRE(c.isOpen());
     REQUIRE(continuationCalled);
+  }
+
+  SECTION("connecting asynchronously allows you to see the ip address of the service") {
+    auto c = Connection{};
+    auto openTask = c.open("localhost", server.port());
+
+    openTask.then([](Endpoint e) {
+      REQUIRE(e.toString() == "127.0.0.1");
+      REQUIRE(e.isV4());
+      REQUIRE(!e.isV6());
+    }).wait();
   }
 
   SECTION("two connections can be opened at the same time") {
@@ -60,7 +71,7 @@ TEST_CASE("Connection can't be opened to an invalid imap service", "[connection]
     auto openTask = c.open("wrong_localhost");
 
     auto continuationCalled = false;
-    openTask.then([&](pplx::task<void> t) {
+    openTask.then([&](pplx::task<Endpoint> t) {
       REQUIRE(!c.isOpen());
       REQUIRE_THROWS(t.get());
       continuationCalled = true;

@@ -8,6 +8,21 @@
 
 namespace imap {
 
+  class Endpoint {
+    struct Impl;
+    std::shared_ptr<const Impl> m_impl;
+
+    friend class Connection;
+
+  public:
+    Endpoint();
+    ~Endpoint();
+
+    bool isV4() const;
+    bool isV6() const;
+    std::string toString() const;
+  };
+
   class Connection {
     struct Impl;
     std::unique_ptr<Impl> m_impl;
@@ -27,8 +42,8 @@ namespace imap {
 
     bool isOpen() const;
 
-    pplx::task<void> open(std::string host);
-    pplx::task<void> open(std::string host, unsigned short port);
+    pplx::task<Endpoint> open(std::string host);
+    pplx::task<Endpoint> open(std::string host, unsigned short port);
   };
 
 }

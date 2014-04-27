@@ -18,6 +18,28 @@ using tce_with_error = pplx::task_completion_event<std::pair<error_code, T>>;
 
 namespace imap {
 
+  struct Endpoint::Impl {
+    io::ip::address m_address;
+
+    Impl(io::ip::address a) : m_address{ std::move(a) } {
+    }
+  };
+
+  Endpoint::Endpoint() = default;
+  Endpoint::~Endpoint() = default;
+
+  bool Endpoint::isV4() const {
+    return m_impl->m_address.is_v4();
+  }
+
+  bool Endpoint::isV6() const {
+    return m_impl->m_address.is_v6();
+  }
+
+  string Endpoint::toString() const {
+    return m_impl->m_address.to_string();
+  }
+
   struct SharedImpl {
     io::io_service m_service;
     io::io_service::work m_work; // this work keeps the shared thread running
@@ -90,23 +112,28 @@ namespace imap {
       });
     }
 
-    task<void> asyncConnect(string host, string service) {
+    task<Endpoint> asyncConnect(string host, string service) {
       using Iterator = tcp::resolver::iterator;
 
       auto resolveTask = asyncResolve(std::move(host), std::move(service));
       
       return resolveTask.then([this](task<Iterator> t) {
-        auto tce = task_completion_event<error_code>{};
+        auto tce = tce_with_error<Iterator>{};
 
-        io::async_connect(m_socket, t.get(), [tce](const error_code& e, Iterator) {
-          tce.set(e);
+        io::async_connect(m_socket, t.get(), [tce](const error_code& e, Iterator i) {
+          tce.set(std::make_pair(e, i));
         });
 
-        auto thrower = task<error_code>{ tce };
+        auto thrower = task_with_error<Iterator>{ tce };
 
-        return thrower.then([](task<error_code> e) {
-          if (e.get())
-            throw boost::system::system_error(e.get());
+        return thrower.then([](task_with_error<Iterator> result) {
+          if (result.get().first)
+            throw boost::system::system_error(result.get().first);
+
+          auto endpoint = Endpoint{};
+          auto address = static_cast<tcp::endpoint>(*result.get().second).address();
+          endpoint.m_impl = std::make_shared<const Endpoint::Impl>(address);
+          return endpoint;
         });
       });
     }
@@ -143,11 +170,11 @@ namespace imap {
     return m_impl->m_socket.is_open();
   }
 
-  task<void> Connection::open(string host) {
+  task<Endpoint> Connection::open(string host) {
     return m_impl->asyncConnect(std::move(host), "imap");
   }
 
-  task<void> Connection::open(string host, unsigned short port) {
+  task<Endpoint> Connection::open(string host, unsigned short port) {
     return m_impl->asyncConnect(std::move(host), std::to_string(port));
   }
 
