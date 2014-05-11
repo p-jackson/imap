@@ -7,7 +7,7 @@ add_executable(tests ${sources} ${includes})
 
 include_directories(${CATCH_INCLUDE_DIR})
 
-target_link_libraries(tests imaplib ${Boost_LIBRARIES})
+target_link_libraries(tests imap ${Boost_LIBRARIES})
 
 add_dependencies(tests catch)
 

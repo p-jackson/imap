@@ -1,6 +1,6 @@
 #include "mock_server.h"
 
-#include "include/imap/connection.h"
+#include <imap/connection.h>
 
 #include <catch.hpp>
 

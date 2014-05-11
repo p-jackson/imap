@@ -19,6 +19,7 @@ add_definitions(-DBOOST_ALL_NO_LIB)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 
 include_directories(${imap_SOURCE_DIR})
+include_directories(${imap_SOURCE_DIR}/include)
 include_directories(${CASABLANCA_INCLUDE_DIR})
 
 # Needed by Boost.ASIO
@@ -34,7 +35,7 @@ endif()
 add_subdirectory(${EXT_PROJECTS_DIR}/casablanca)
 add_subdirectory(${EXT_PROJECTS_DIR}/catch)
 
-add_subdirectory(imaplib)
+add_subdirectory(imap)
 add_subdirectory(tests)
 add_subdirectory(command)
 add_subdirectory(include)

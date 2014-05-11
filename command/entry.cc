@@ -1,4 +1,4 @@
-#include "imaplib/imap.h"
+#include <imap/imap.h>
 
 #include <iostream>
 
