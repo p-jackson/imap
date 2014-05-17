@@ -10,7 +10,7 @@ class Command {
 public:
   template<class T>
   Command(T) {
-    m_runnable = std::make_unique<RunnableImpl<T>>{};
+    m_runnable = std::make_unique<RunnableImpl<T>>();
   }
 
   Command(const Command& o) {
@@ -38,7 +38,7 @@ private:
     T m_innerCommand;
   public:
     std::unique_ptr<Runnable> copy() const override {
-      return std::make_unique<RunnableImpl<T>>{};
+      return std::make_unique<RunnableImpl<T>>();
     }
 
     bool run(std::istream& in, std::ostream& out, std::vector<std::string> args) override {

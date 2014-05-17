@@ -1,6 +1,8 @@
 #include "command.h"
 
 #include <boost/algorithm/string.hpp>
+#include <boost/lexical_cast.hpp>
+#include <imap/connection.h>
 #include <iostream>
 
 using namespace std;
@@ -30,8 +32,36 @@ Command findCommand(const string& name) {
     return *command;
 }
 
-int main() {
+string getFilePart(const string& path) {
+  vector<string> parts;
+  boost::split(parts, path, boost::is_any_of("/\\"));
+  return parts.back();
+}
+
+imap::Connection initConnection(int argc, char** argv) {
+  if (argc < 3) {
+    cerr << "Host and port weren't specified.\n";
+    cerr << "  Usage: " << getFilePart(argv[0]) << " [host] [port]\n";
+    return {};
+  }
+
+  cout << "Connecting...\n";
+  try {
+    auto port = boost::lexical_cast<unsigned short>(argv[2]);
+    auto connection = imap::Connection{ argv[1], port };
+    cout << "Connected.\n";
+    return connection;
+  }
+  catch (exception& e) {
+    cerr << "ERROR: " << e.what() << "\n";
+    return {};
+  }
+}
+
+int main(int argc, char** argv) {
   initCommands();
+
+  auto connection = initConnection(argc, argv);
 
   string line;
   bool quit = false;
@@ -42,6 +72,11 @@ int main() {
 
     auto command = findCommand(args[0]);
 
-    quit = command.run(cin, cout, move(args));
+    try {
+      quit = command.run(cin, cout, move(args));
+    }
+    catch (exception& e) {
+      cerr << "ERROR: " << e.what() << "\n";
+    }
   }
 }
