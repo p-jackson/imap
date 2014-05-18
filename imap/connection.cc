@@ -1,6 +1,7 @@
 #include <imap/connection.h>
 
 #include <boost/asio.hpp>
+#include <boost/asio/ssl.hpp>
 #include <thread>
 
 namespace io = boost::asio;
@@ -62,7 +63,9 @@ namespace imap {
     static std::atomic<int> sm_sharedCount;
 
     SharedImpl* m_sharedImpl;
-    tcp::socket m_socket;
+    io::ssl::context m_context;
+    io::ssl::stream<tcp::socket> m_socket;
+    io::streambuf m_readBuffer;
 
     static SharedImpl* createSharedImpl() {
       if (sm_sharedCount++ == 0)
@@ -72,7 +75,8 @@ namespace imap {
 
     Impl()
       : m_sharedImpl{ createSharedImpl() },
-        m_socket{ service() }
+        m_context{ io::ssl::context::sslv23 },
+        m_socket{ service(), m_context }
     {
     }
 
@@ -88,7 +92,9 @@ namespace imap {
     void syncConnect(string host, string service) {
       auto resolver = tcp::resolver{ this->service() };
       auto query = tcp::resolver::query{ std::move(host), std::move(service) };
-      io::connect(m_socket, resolver.resolve(query));
+      auto ctx = io::ssl::context{ io::ssl::context::sslv23 };
+      io::connect(m_socket.lowest_layer(), resolver.resolve(query));
+      m_socket.handshake(io::ssl::stream_base::client);
     }
 
     task<tcp::resolver::iterator> asyncResolve(string host, string service) {
@@ -112,15 +118,30 @@ namespace imap {
       });
     }
 
+    task<void> asyncHandshake() {
+      auto tce = task_completion_event<error_code>{};
+
+      m_socket.async_handshake(io::ssl::stream_base::client, [tce](const error_code& e) {
+        tce.set(e);
+      });
+
+      auto thrower = task<error_code>{ tce };
+
+      return thrower.then([](task<error_code> result) {
+        if (result.get())
+          throw boost::system::system_error{ result.get() };
+      });
+    }
+
     task<Endpoint> asyncConnect(string host, string service) {
       using Iterator = tcp::resolver::iterator;
 
       auto resolveTask = asyncResolve(std::move(host), std::move(service));
       
-      return resolveTask.then([this](task<Iterator> t) {
+      auto connectTask = resolveTask.then([this](task<Iterator> t) {
         auto tce = tce_with_error<Iterator>{};
 
-        io::async_connect(m_socket, t.get(), [tce](const error_code& e, Iterator i) {
+        io::async_connect(m_socket.lowest_layer(), t.get(), [tce](const error_code& e, Iterator i) {
           tce.set(std::make_pair(e, i));
         });
 
@@ -136,11 +157,68 @@ namespace imap {
           return endpoint;
         });
       });
+
+      return connectTask.then([this](task<Endpoint> t) {
+        auto endpoint = t.get();
+        return asyncHandshake().then([endpoint]() mutable {
+          return endpoint;
+        });
+      });
+    }
+
+    task<size_t> asyncWrite(string line) {
+      line += "\r\n";
+      auto buffer = io::buffer(line.data(), line.length());
+
+      auto tce = tce_with_error<size_t>{};
+
+      io::async_write(m_socket, buffer, [tce](const error_code& e, size_t written) {
+        tce.set(std::make_pair(e, written));
+      });
+
+      auto thrower = task_with_error<size_t>{ tce };
+
+      return thrower.then([](task_with_error<size_t> result) {
+        if (result.get().first)
+          throw boost::system::system_error{ result.get().first };
+
+        return result.get().second;
+      });
+    }
+
+    task<string> asyncReadLine() {
+      auto tce = tce_with_error<size_t>{};
+
+      io::async_read_until(m_socket, m_readBuffer, "\r\n", [tce](const error_code& e, size_t read) {
+        tce.set(std::make_pair(e, read));
+      });
+
+      auto thrower = task_with_error<size_t>{ tce };
+
+      return thrower.then([this](task_with_error<size_t> result) {
+        if (result.get().first)
+          throw boost::system::system_error{ result.get().first };
+
+        std::istream is(&m_readBuffer);
+        auto line = string{};
+        std::getline(is, line);
+
+        return line;
+      });
     }
   };
 
   SharedImpl* Connection::Impl::sm_sharedImpl = nullptr;
   std::atomic<int> Connection::Impl::sm_sharedCount = 0;
+
+
+  void throwIfNotOpen(Connection* connection, const char* what) {
+    if (connection->isOpen())
+      return;
+
+    auto msg = string{ "Can't " } + what + " from an unopened connection";
+    throw std::runtime_error{ msg };
+  }
 
 
   Connection::Connection() : m_impl{ std::make_unique<Impl>() } {
@@ -167,7 +245,10 @@ namespace imap {
   }
 
   bool Connection::isOpen() const {
-    return m_impl->m_socket.is_open();
+    if (m_impl)
+      return m_impl->m_socket.lowest_layer().is_open();
+    else
+      return false;
   }
 
   task<Endpoint> Connection::open(string host) {
@@ -176,6 +257,21 @@ namespace imap {
 
   task<Endpoint> Connection::open(string host, unsigned short port) {
     return m_impl->asyncConnect(std::move(host), std::to_string(port));
+  }
+
+  task<string> Connection::readLine() {
+    throwIfNotOpen(this, "read");
+    return m_impl->asyncReadLine();
+  }
+
+  task<string> Connection::send(string line) {
+    throwIfNotOpen(this, "send");
+
+    auto writeTask = m_impl->asyncWrite(std::move(line));
+
+    return writeTask.then([this](size_t) {
+      return m_impl->asyncReadLine();
+    });
   }
 
 }

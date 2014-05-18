@@ -9,6 +9,8 @@ enable_testing()
 include(cotire)
 
 find_package(Git)
+find_package(OpenSSL REQUIRED)
+
 
 # Find the Boost directory.
 # Disable auto link with BOOST_ALL_NO_LIB, we use cmake to do the linking.
@@ -21,6 +23,7 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 include_directories(${imap_SOURCE_DIR})
 include_directories(${imap_SOURCE_DIR}/include)
 include_directories(${CASABLANCA_INCLUDE_DIR})
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 # Needed by Boost.ASIO
 add_definitions(-D_WIN32_WINNT=0x0501)

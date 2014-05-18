@@ -9,16 +9,16 @@ using namespace std;
 
 struct Unknown {
   static string name() { return "has_no_runnable_name"; }
-  bool run(istream&, ostream& out, vector<string> args) {
+  bool run(istream&, ostream& out, imap::Connection&, vector<string> args) {
     out << "Unknown command: \"" << args[0] << "\". Try \"help\".\n";
     return false;
   }
 };
 
-std::vector<Command> g_commands;
+vector<Command> g_commands;
 
 void registerCommand(Command c) {
-  g_commands.push_back(std::move(c));
+  g_commands.push_back(move(c));
 }
 
 Command findCommand(const string& name) {
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     auto command = findCommand(args[0]);
 
     try {
-      quit = command.run(cin, cout, move(args));
+      quit = command.run(cin, cout, connection, move(args));
     }
     catch (exception& e) {
       cerr << "ERROR: " << e.what() << "\n";

@@ -29,7 +29,7 @@ namespace imap {
 
   public:
     Connection();
-    Connection(std::string host);
+    explicit Connection(std::string host);
     Connection(std::string host, unsigned short port);
 
     ~Connection();
@@ -44,6 +44,9 @@ namespace imap {
 
     pplx::task<Endpoint> open(std::string host);
     pplx::task<Endpoint> open(std::string host, unsigned short port);
+
+    pplx::task<std::string> readLine();
+    pplx::task<std::string> send(std::string line);
   };
 
 }
