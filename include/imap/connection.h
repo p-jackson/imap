@@ -1,6 +1,7 @@
 #ifndef IMAP_CONNECTION_H
 #define IMAP_CONNECTION_H
 
+#include "fwd.h"
 #include "include_pplx.h"
 
 #include <string>
@@ -41,12 +42,14 @@ namespace imap {
     Connection& operator=(Connection&&);
 
     bool isOpen() const;
+    CommandBuilder& getCommandBuilder() const;
 
     pplx::task<Endpoint> open(std::string host);
     pplx::task<Endpoint> open(std::string host, unsigned short port);
 
     pplx::task<std::string> readLine();
     pplx::task<std::string> send(std::string line);
+    pplx::task<std::string> sendRaw(std::string line);
   };
 
 }

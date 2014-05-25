@@ -62,9 +62,14 @@ int main(int argc, char** argv) {
   initCommands();
 
   auto connection = initConnection(argc, argv);
+  if (!connection.isOpen())
+    return 1;
 
   string line;
   bool quit = false;
+
+  // Get the first response from the server.
+  findCommand("read").run(cin, cout, connection, {});
 
   while (!quit && getline(cin, line)) {
     vector<string> args;

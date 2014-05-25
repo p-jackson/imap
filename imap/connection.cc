@@ -1,5 +1,7 @@
 #include <imap/connection.h>
 
+#include <imap/command_builder.h>
+
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
 #include <thread>
@@ -66,6 +68,7 @@ namespace imap {
     io::ssl::context m_context;
     io::ssl::stream<tcp::socket> m_socket;
     io::streambuf m_readBuffer;
+    CommandBuilder m_builder;
 
     static SharedImpl* createSharedImpl() {
       if (sm_sharedCount++ == 0)
@@ -167,7 +170,6 @@ namespace imap {
     }
 
     task<size_t> asyncWrite(string line) {
-      line += "\r\n";
       auto buffer = io::buffer(line.data(), line.length());
 
       auto tce = tce_with_error<size_t>{};
@@ -251,6 +253,10 @@ namespace imap {
       return false;
   }
 
+  CommandBuilder& Connection::getCommandBuilder() const {
+    return m_impl->m_builder;
+  }
+
   task<Endpoint> Connection::open(string host) {
     return m_impl->asyncConnect(std::move(host), "imap");
   }
@@ -264,14 +270,19 @@ namespace imap {
     return m_impl->asyncReadLine();
   }
 
-  task<string> Connection::send(string line) {
-    throwIfNotOpen(this, "send");
+  task<string> Connection::sendRaw(string line) {
+    throwIfNotOpen(this, "sendRaw");
 
     auto writeTask = m_impl->asyncWrite(std::move(line));
 
     return writeTask.then([this](size_t) {
       return m_impl->asyncReadLine();
     });
+  }
+
+  task<string> Connection::send(string line){
+    throwIfNotOpen(this, "send");
+    return sendRaw(getCommandBuilder().makeLine(line));
   }
 
 }
