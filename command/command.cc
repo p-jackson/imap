@@ -4,6 +4,7 @@
 #include <imap/command_builder.h>
 
 #include <fstream>
+#include <Windows.h>
 
 using namespace std;
 using imap::Connection;
@@ -18,7 +19,9 @@ struct Quit {
 struct Read {
   static string name() { return "read"; }
   bool run(std::istream&, std::ostream& out, Connection& conn, std::vector<std::string>) {
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_BLUE | FOREGROUND_INTENSITY);
     out << conn.readLine().get() << "\n";
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN);
     return false;
   }
 };
