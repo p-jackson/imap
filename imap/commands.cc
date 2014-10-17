@@ -45,4 +45,13 @@ namespace imap {
     });
   }
 
+  task<void> logout(Connection& connection) {
+    return connection.send("LOGOUT").then([&connection](vector<Tokens> tokens) {
+      auto result = parseResult(tokens.back().at(1));
+
+      if (result != Result::OK)
+        throwUnexpectedResult();
+    });
+  }
+
 }

@@ -71,6 +71,14 @@ struct Login {
   }
 };
 
+struct Logout {
+  static string name() { return "logout"; }
+  bool run(istream&, ostream&, Connection& conn, vector<string>) {
+    imap::logout(conn).get();
+    return false;
+  }
+};
+
 struct Help {
   static string name() { return "help"; }
   bool run(istream&, ostream& out, Connection&, vector<string>) {
@@ -85,6 +93,8 @@ struct Help {
     out << "    log in using the given username and password or if no credentials\n";
     out << "    are provided then looks for credentials in a file called login.txt\n";
     out << "    with the username and password on the first and second lines\n";
+    out << "  logout\n";
+    out << "    logs out from the server, which closes the connection.\n";
     out << "  quit\n";
     out << "    closes application\n";
     return false;
@@ -100,6 +110,7 @@ void initCommands() {
   registerCommandT<Quit>();
   registerCommandT<Read>();
   registerCommandT<Login>();
+  registerCommandT<Logout>();
   registerCommandT<Write>();
   registerCommandT<Help>();
 }
