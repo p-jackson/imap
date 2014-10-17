@@ -1,5 +1,6 @@
 #include "command.h"
 
+#include <imap/commands.h>
 #include <imap/connection.h>
 #include <imap/default_command_builder.h>
 
@@ -50,7 +51,8 @@ struct Login {
       return false;
     }
 
-    conn.send("LOGIN", username, password).get();
+    imap::login(conn, username, password).get();
+
     return false;
   }
 
