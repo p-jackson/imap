@@ -1,8 +1,9 @@
 #include "command.h"
 
 #include <imap/connection.h>
-#include <imap/command_builder.h>
+#include <imap/default_command_builder.h>
 
+#include <boost/algorithm/string/join.hpp>
 #include <fstream>
 #include <Windows.h>
 
@@ -11,35 +12,32 @@ using imap::Connection;
 
 struct Quit {
   static string name() { return "quit"; }
-  bool run(std::istream&, std::ostream&, Connection&, std::vector<std::string>) {
+  bool run(istream&, ostream&, Connection&, vector<string>) {
     return true;
   }
 };
 
 struct Read {
   static string name() { return "read"; }
-  bool run(std::istream&, std::ostream& out, Connection& conn, std::vector<std::string>) {
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_BLUE | FOREGROUND_INTENSITY);
-    out << conn.readLine().get() << "\n";
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), FOREGROUND_BLUE | FOREGROUND_RED | FOREGROUND_GREEN);
+  bool run(istream&, ostream&, Connection& conn, vector<string>) {
+    conn.readLine().get();
     return false;
   }
 };
 
 struct Write {
   static string name() { return "write"; }
-  bool run(std::istream& in, std::ostream& out, Connection& conn, std::vector<std::string>) {
+  bool run(istream& in, ostream&, Connection& conn, vector<string>) {
     string line;
     getline(in, line);
-    auto task = conn.send(line);
-    out << task.get() << "\n";
+    conn.send(line).get();
     return false;
   }
 };
 
 struct Login {
   static string name() { return "login"; }
-  bool run(std::istream&, std::ostream& out, Connection& conn, std::vector<std::string> args) {
+  bool run(istream&, ostream& out, Connection& conn, vector<string> args) {
     string username, password;
     tie(username, password) = getCredentials(args);
 
@@ -52,11 +50,7 @@ struct Login {
       return false;
     }
 
-    auto line = conn.getCommandBuilder().makeLine("LOGIN " + username + " " + password);
-    auto task = conn.sendRaw(line);
-    auto response = task.get();
-    out << response << "\n";
-
+    conn.send("LOGIN", username, password).get();
     return false;
   }
 
@@ -77,14 +71,14 @@ struct Login {
 
 struct Help {
   static string name() { return "help"; }
-  bool run(std::istream&, std::ostream& out, Connection&, std::vector<std::string>) {
+  bool run(istream&, ostream& out, Connection&, vector<string>) {
     out << "Supported commands:\n";
     out << "  help\n";
     out << "    prints this message\n";
     out << "  read\n";
     out << "    wait from a single line from the server\n";
     out << "  write\n";
-    out << "    prompts for a line which is sent to the server\n";
+    out << "    prompts for a line which is sent to the server (don't provide a command ID)\n";
     out << "  login [<username> <password>]\n";
     out << "    log in using the given username and password or if no credentials\n";
     out << "    are provided then looks for credentials in a file called login.txt\n";

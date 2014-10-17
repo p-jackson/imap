@@ -1,6 +1,6 @@
 #include <imap/connection.h>
 
-#include <imap/command_builder.h>
+#include <imap/default_command_builder.h>
 
 #include <boost/asio.hpp>
 #include <boost/asio/ssl.hpp>
@@ -68,7 +68,7 @@ namespace imap {
     io::ssl::context m_context;
     io::ssl::stream<tcp::socket> m_socket;
     io::streambuf m_readBuffer;
-    CommandBuilder m_builder;
+    std::unique_ptr<CommandBuilder> m_builder;
 
     static SharedImpl* createSharedImpl() {
       if (sm_sharedCount++ == 0)
@@ -224,6 +224,7 @@ namespace imap {
 
 
   Connection::Connection() : m_impl{ std::make_unique<Impl>() } {
+    setCommandBuilder(DefaultCommandBuilder{});
   }
 
   Connection::~Connection() = default;
@@ -253,8 +254,8 @@ namespace imap {
       return false;
   }
 
-  CommandBuilder& Connection::getCommandBuilder() const {
-    return m_impl->m_builder;
+  void Connection::setCommandBuilderInner(std::unique_ptr<CommandBuilder> builder) {
+    m_impl->m_builder = std::move(builder);
   }
 
   task<Endpoint> Connection::open(string host) {
@@ -265,24 +266,52 @@ namespace imap {
     return m_impl->asyncConnect(std::move(host), std::to_string(port));
   }
 
-  task<string> Connection::readLine() {
+  task<Connection::Tokens> Connection::readLine() {
     throwIfNotOpen(this, "read");
-    return m_impl->asyncReadLine();
-  }
-
-  task<string> Connection::sendRaw(string line) {
-    throwIfNotOpen(this, "sendRaw");
-
-    auto writeTask = m_impl->asyncWrite(std::move(line));
-
-    return writeTask.then([this](size_t) {
-      return m_impl->asyncReadLine();
+    return m_impl->asyncReadLine().then([=](Line line) {
+      return m_impl->m_builder->split(line);
     });
   }
 
-  task<string> Connection::send(string line){
+  task<std::vector<Connection::Line>> Connection::readUntilPrefixResult(string prefix, std::vector<Line> soFar) {
+    const auto readLine = m_impl->asyncReadLine();
+
+    return readLine.then([=](Line line) mutable {
+      soFar.push_back(line);
+
+      if (m_impl->m_builder->getPrefix(line) != prefix)
+        return readUntilPrefixResult(prefix, soFar);
+
+      auto tce = task_completion_event<std::vector<Line>>{};
+      tce.set(soFar);
+      return task<std::vector<Line>>{ tce };
+    });
+  }
+
+  task<std::vector<Connection::Tokens>> Connection::sendRaw(Line line) {
+    throwIfNotOpen(this, "sendRaw");
+
+    const auto prefix = m_impl->m_builder->getPrefix(line);
+    const auto writeLine = m_impl->asyncWrite(std::move(line));
+
+    return writeLine.then([=](size_t) {
+      return readUntilPrefixResult(prefix).then([=](std::vector<Line> lines) {
+        std::vector<Tokens> result;
+
+        std::transform(begin(lines), end(lines), std::back_inserter(result), [=](Line l) {
+          return m_impl->m_builder->split(l);
+        });
+
+        return move(result);
+      });
+    });
+  }
+
+  task<std::vector<Connection::Tokens>> Connection::sendInner(Tokens tokens) {
     throwIfNotOpen(this, "send");
-    return sendRaw(getCommandBuilder().makeLine(line));
+
+    auto line = m_impl->m_builder->join(std::move(tokens));
+    return sendRaw(line);
   }
 
 }

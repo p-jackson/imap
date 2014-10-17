@@ -2,7 +2,7 @@
 #define IMAP_FWD_H
 
 namespace imap {
-  class CommandBuilder;
+  class DefaultCommandBuilder;
   class Connection;
 }
 

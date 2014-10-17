@@ -16,7 +16,7 @@ find_package(OpenSSL REQUIRED)
 # Disable auto link with BOOST_ALL_NO_LIB, we use cmake to do the linking.
 # We add Boost to the include path with Boost_INCLUDE_DIR.
 set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost 1.55 COMPONENTS system REQUIRED)  
+find_package(Boost 1.55 COMPONENTS system filesystem REQUIRED)  
 add_definitions(-DBOOST_ALL_NO_LIB)
 include_directories(SYSTEM ${Boost_INCLUDE_DIR})
 

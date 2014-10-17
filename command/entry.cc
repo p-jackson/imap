@@ -1,6 +1,9 @@
 #include "command.h"
 
+#include "command_printer.h"
+
 #include <boost/algorithm/string.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/lexical_cast.hpp>
 #include <imap/connection.h>
 #include <iostream>
@@ -32,10 +35,9 @@ Command findCommand(const string& name) {
     return *command;
 }
 
-string getFilePart(const string& path) {
-  vector<string> parts;
-  boost::split(parts, path, boost::is_any_of("/\\"));
-  return parts.back();
+string getFilePart(const char* pathStr) {
+  auto path = boost::filesystem::path{ pathStr };
+  return path.filename().string();
 }
 
 imap::Connection initConnection(int argc, char** argv) {
@@ -49,6 +51,7 @@ imap::Connection initConnection(int argc, char** argv) {
   try {
     auto port = boost::lexical_cast<unsigned short>(argv[2]);
     auto connection = imap::Connection{ argv[1], port };
+    connection.setCommandBuilder(CommandPrinter{ cout });
     cout << "Connected.\n";
     return connection;
   }
